@@ -1,4 +1,5 @@
 package jeux_casse_briques;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -6,6 +7,9 @@ import java.awt.event.*;
 public class CasseBrique extends JPanel implements KeyListener, ActionListener {
     private Timer timer;
     private int score = 0;
+    private int level = 1;
+
+    private boolean play = true;
 
     // Ball
     private int ballX = 120, ballY = 350;
@@ -29,16 +33,29 @@ public class CasseBrique extends JPanel implements KeyListener, ActionListener {
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
 
-        // Crée une grille de briques
+        initBricks();
+
+        timer = new Timer(8, this);
+        timer.start();
+    }
+
+    private void initBricks() {
         bricks = new boolean[brickRows][brickCols];
         for (int i = 0; i < brickRows; i++) {
             for (int j = 0; j < brickCols; j++) {
                 bricks[i][j] = true;
             }
         }
+    }
 
-        timer = new Timer(8, this);
-        timer.start();
+    private int countBricks() {
+        int count = 0;
+        for (int i = 0; i < brickRows; i++) {
+            for (int j = 0; j < brickCols; j++) {
+                if (bricks[i][j]) count++;
+            }
+        }
+        return count;
     }
 
     @Override
@@ -47,7 +64,7 @@ public class CasseBrique extends JPanel implements KeyListener, ActionListener {
         g.setColor(Color.black);
         g.fillRect(1, 1, 692, 592);
 
-        // Dessine les briques
+        // Briques
         for (int i = 0; i < brickRows; i++) {
             for (int j = 0; j < brickCols; j++) {
                 if (bricks[i][j]) {
@@ -65,14 +82,32 @@ public class CasseBrique extends JPanel implements KeyListener, ActionListener {
         g.setColor(Color.green);
         g.fillRect(paddleX, 550, PADDLE_WIDTH, PADDLE_HEIGHT);
 
-        // Balle
+        // Ball
         g.setColor(Color.yellow);
         g.fillOval(ballX, ballY, BALL_SIZE, BALL_SIZE);
 
-        // Score
+        // Score + Niveau
         g.setColor(Color.white);
         g.setFont(new Font("Serif", Font.BOLD, 20));
         g.drawString("Score: " + score, 590, 30);
+        g.drawString("Niveau: " + level, 50, 30);
+
+        // Messages fin
+        if (!play) {
+            String msg;
+            if (ballY > 570) {
+                msg = "Game Over, Score: " + score;
+            } else {
+                msg = "Niveau " + level + " terminé !";
+            }
+
+            g.setColor(Color.white);
+            g.setFont(new Font("Serif", Font.BOLD, 30));
+            g.drawString(msg, 200, 300);
+
+            g.setFont(new Font("Serif", Font.PLAIN, 20));
+            g.drawString("Appuie sur Entrée pour rejouer", 210, 340);
+        }
 
         g.dispose();
     }
@@ -81,43 +116,58 @@ public class CasseBrique extends JPanel implements KeyListener, ActionListener {
     public void actionPerformed(ActionEvent e) {
         timer.start();
 
-        // Déplacement de la balle
-        ballX += ballDirX;
-        ballY += ballDirY;
+        if (play) {
+            // Déplacement de la balle
+            ballX += ballDirX;
+            ballY += ballDirY;
 
-        // Collisions mur gauche/droite
-        if (ballX < 0 || ballX > 670) ballDirX = -ballDirX;
-        // Collision plafond
-        if (ballY < 0) ballDirY = -ballDirY;
+            // Gestion des collisions avec les murs
+            if (ballX < 0 || ballX > 670) ballDirX = -ballDirX;
+            if (ballY < 0) ballDirY = -ballDirY;
 
-        // Collision paddle
-        if (new Rectangle(ballX, ballY, BALL_SIZE, BALL_SIZE)
-                .intersects(new Rectangle(paddleX, 550, PADDLE_WIDTH, PADDLE_HEIGHT))) {
-            ballDirY = -ballDirY;
-        }
+            // Collision avec la raquette
+            if (new Rectangle(ballX, ballY, BALL_SIZE, BALL_SIZE)
+                    .intersects(new Rectangle(paddleX, 550, PADDLE_WIDTH, PADDLE_HEIGHT))) {
+                ballDirY = -ballDirY;
+            }
 
-        // Collision briques
-        for (int i = 0; i < brickRows; i++) {
-            for (int j = 0; j < brickCols; j++) {
-                if (bricks[i][j]) {
-                    int brickX = j * brickWidth + 80;
-                    int brickY = i * brickHeight + 50;
-                    Rectangle brickRect = new Rectangle(brickX, brickY, brickWidth, brickHeight);
-                    Rectangle ballRect = new Rectangle(ballX, ballY, BALL_SIZE, BALL_SIZE);
+            // Collision avec les briques
+            for (int i = 0; i < brickRows; i++) {
+                for (int j = 0; j < brickCols; j++) {
+                    if (bricks[i][j]) {
+                        int brickX = j * brickWidth + 80;
+                        int brickY = i * brickHeight + 50;
+                        Rectangle brickRect = new Rectangle(brickX, brickY, brickWidth, brickHeight);
+                        Rectangle ballRect = new Rectangle(ballX, ballY, BALL_SIZE, BALL_SIZE);
 
-                    if (ballRect.intersects(brickRect)) {
-                        bricks[i][j] = false;
-                        score += 5;
-                        ballDirY = -ballDirY;
+                        if (ballRect.intersects(brickRect)) {
+                            bricks[i][j] = false;
+                            score += 5;
+                            ballDirY = -ballDirY;
+                        }
                     }
                 }
             }
-        }
 
-        // Défaite
-        if (ballY > 570) {
-            timer.stop();
-            System.out.println("Game Over");
+            // Défaite : la balle tombe en bas
+            if (ballY > 570) {
+                play = false;
+            }
+
+            // Victoire : toutes les briques sont détruites
+            if (countBricks() == 0) {
+                // Préparer le niveau suivant
+                level++; // Augmente le niveau
+                brickRows++; // Ajoute une ligne de briques
+                // Réinitialise la balle et la raquette
+                ballX = 120;
+                ballY = 350;
+                ballDirX = -1;
+                ballDirY = -2;
+                paddleX = 310;
+                initBricks(); // Génère les nouvelles briques
+                play = true; // Relance le jeu automatiquement
+            }
         }
 
         repaint();
@@ -125,13 +175,32 @@ public class CasseBrique extends JPanel implements KeyListener, ActionListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
-            if (paddleX >= 600) paddleX = 600;
-            else paddleX += 20;
+        if (play) {
+            if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
+                if (paddleX >= 600) paddleX = 600;
+                else paddleX += 20;
+            }
+            if (e.getKeyCode() == KeyEvent.VK_LEFT) {
+                if (paddleX <= 10) paddleX = 10;
+                else paddleX -= 20;
+            }
         }
-        if (e.getKeyCode() == KeyEvent.VK_LEFT) {
-            if (paddleX <= 10) paddleX = 10;
-            else paddleX -= 20;
+
+        // Rejouer
+        if (e.getKeyCode() == KeyEvent.VK_ENTER && !play) {
+            play = true;
+            ballX = 120;
+            ballY = 350;
+            ballDirX = -1;
+            ballDirY = -2;
+            paddleX = 310;
+
+            if (countBricks() == 0) {
+                level++;
+            }
+
+            initBricks();
+            repaint();
         }
     }
 
